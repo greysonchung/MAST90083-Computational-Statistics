@@ -56,4 +56,65 @@ for (i in 1:length(lambda)) {
 
 plot(log(lambda), mse, xlab = "Logrithm of lambda", ylab = "Mean Squared Error")
 ```
-We cannot really say anything about the optimal value of $\lambda$ with $l2$-norm, since it only tells us the size of the coefficients. On the other hand, mean squared error can tell us how accurate the coefficients are in terms of estimating the response, $Salary$.
+We cannot really say anything about the optimal value of $\lambda$ with $l2$-norm, since it only tells us the size of the coefficients. On the other hand, mean squared error can tell us how accurate the coefficients are in terms of estimating the our response variable, $Salary$.
+
+### Question 1.4
+```{r}
+# Set the seed equal to 10 for random number generator
+set.seed(10)
+# Sample the training set
+n_train <- sample(seq_len(length(y)), size = 131)
+x_train <- x[n_train, ]
+y_train <- y[n_train]
+# Sample the testing set
+x_test <- x[-n_train, ]
+y_test <- y[-n_train]
+
+# Performing 10-fold cross validation
+(train_cv <- cv.glmnet(x_train, y_train, lambda = lambda, type.measure = "mse", alpha = 0))
+plot(train_cv)
+```
+As the result above depicted, the model has the lowest mean squared error at 95,669 when $\lambda = 305.4$. Next, we will evaluate the test mean squared error.
+```{r}
+test_pred <- predict(train_cv$glmnet.fit, train_cv$lambda.min, newx = x_test)
+mean((y_test - test_pred)^2)
+```
+The corresponding MSE for $\lambda = 305.4$ on the testing set is 143265.4.
+
+```{r}
+# Refit the ridge regression model on the full data set using the lambda chosen by CV
+new_model <- glmnet(x, y, alpha = 0, lambda = train_cv$lambda.min)
+coef(new_model)
+```
+
+```{r}
+ols_model <- lm(Salary ~ ., data = Hitters)
+ols_model$coefficients
+```
+As we can see from the output above, the coefficients of the ridge regression model are much smaller compare to the one from ordinary least square model. In some cases, the coefficients in ridge regression are shrinked close to zero, but ridge regression still retains all the variables.
+
+### Question 1.5
+```{r}
+set.seed(10)
+(lasso_cv <- cv.glmnet(x_train, y_train, alpha = 1, lambda = lambda, type.measure = "mse"))
+plot(lasso_cv)
+```
+
+```{r}
+lasso_test_pred <- predict(lasso_cv$glmnet.fit, lasso_cv$lambda.min, newx = x_test)
+mean((y_test - lasso_test_pred)^2)
+```
+As the output above suggests, the optimal $\lambda$ value for lasso regression is 18.74, and the corresponding mean squared error for the testing set is 142270.1.
+
+```{r}
+lasso_new_model <- glmnet(x, y, alpha = 1, lambda = lasso_cv$lambda.min)
+coef(lasso_new_model)
+```
+Finally, we refitted the lasso regression model using the $\lambda = 18.74$ selected from cross-validation. As we can see, most of the coefficients were shrinked to zero, thus, less important variables are eliminated when penalized, resulted in a sparse model compare to ordinary least square and ridge regression model.
+
+### Question 2.1
+```{r}
+
+```
+
+### Question 2.2
