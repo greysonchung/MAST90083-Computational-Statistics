@@ -153,6 +153,7 @@ for (i in 3:n_samples) {
 
 ### Question 2.5
 ```{r}
+P <- c(1:10)
 # Here we will construct the response variable and the matrix X using the samples
 Create_Response <- function(n, p, model) {
   y <- rep(0, n-p)
@@ -183,65 +184,182 @@ Compute_IC2 <- function(sigma2, p, T) {
 Compute_IC3 <- function(sigma2, p, T) {
   return(log(sigma2) + (p * log(T)/T))
 }
+
+# Compute the ICs
+Compute_IC <- function(model, n, IC1, IC2, IC3) {
+  for (p in P) {
+    T <- n-p
+    tmp_y <- Create_Response(n_samples, p, model)
+    tmp_X <- Create_X(n_samples, p, model)
+    coefficient <- ginv(t(tmp_X) %*% tmp_X) %*% t(tmp_X) %*% matrix(tmp_y)
+    pred <- tmp_X %*% coefficient
+    sigma2 <- sum((model[c((p+1):n)] - pred)^2)/T
+    
+    # Compute the criteria
+    IC1[p] <- Compute_IC1(sigma2, p, T)
+    IC2[p] <- Compute_IC2(sigma2, p, T)
+    IC3[p] <- Compute_IC3(sigma2, p, T)
+  }
+  return(cbind(IC1, IC2, IC3))
+}
 ```
 
 ```{r}
+n_samples <- 100
 M1_IC1 <- rep(0, 10)
 M1_IC2 <- rep(0, 10)
 M1_IC3 <- rep(0, 10)
+M1_IC <- Compute_IC(M1, n_samples, M1_IC1, M1_IC2, M1_IC3)
 
 M2_IC1 <- rep(0, 10)
 M2_IC2 <- rep(0, 10)
 M2_IC3 <- rep(0, 10)
-P <- c(1:10)
+M2_IC <- Compute_IC(M2, n_samples, M2_IC1, M2_IC2, M2_IC3)
 
-for (p in P) {
-  T <- 100-p
-  
-  M1_y <- Create_Response(n_samples, p, M1)
-  M1_X <- Create_X(n_samples, p, M1)
-  M1_coefficient <- solve(t(M1_X) %*% M1_X) %*% t(M1_X) %*% matrix(M1_y)
-  M1_pred <- M1_X %*% M1_coefficient
-  M1_sigma2 <- sum((M1[c((p+1):100)] - M1_pred)^2)/T
-  
-  M2_y <- Create_Response(n_samples, p, M2)
-  M2_X <- Create_X(n_samples, p, M2)
-  M2_coefficient <- solve(t(M2_X) %*% M2_X) %*% t(M2_X) %*% matrix(M2_y)
-  M2_pred <- M2_X %*% M2_coefficient
-  M2_sigma2 <- sum((M2[c((p+1):100)] - M2_pred)^2)/T
+# Values of IC for model M1
+M1_IC
+# Values of IC for model M2
+M2_IC
+```
 
-  # Compute the criteria for M1
-  M1_IC1[p] <- Compute_IC1(M1_sigma2, p, T)
-  M1_IC2[p] <- Compute_IC2(M1_sigma2, p, T)
-  M1_IC3[p] <- Compute_IC3(M1_sigma2, p, T)
-  
-  # # Compute the criteria for M2
-  M2_IC1[p] <- Compute_IC1(M2_sigma2, p, T)
-  M2_IC2[p] <- Compute_IC2(M2_sigma2, p, T)
-  M2_IC3[p] <- Compute_IC3(M2_sigma2, p, T)
+
+```{r}
+# Plotting the three criteria for model M1
+plot(P, M1_IC[,1], type = "b", pch = 19, col = 'red', ylim = c(-0.5, 1.3),
+     main = "IC Values for M1", ylab = "IC")
+lines(P, M1_IC[,2], pch = 18, col = 'blue', type = "b")
+lines(P, M1_IC[,3], pch = 17, col = 'green', type = "b")
+legend("bottomright", legend=c("IC1", "IC2", "IC3"),
+       col=c("red", "blue", "Green"), lty = 1, cex=0.8)
+```
+
+```{r}
+# Plotting the three criteria for model M2
+plot(P, M2_IC[,1], type = "b", pch = 19, col = 'red', ylim = c(-0.5, 1.3),
+     main = "IC Values for M2", ylab = "IC")
+lines(P, M2_IC[,2], pch = 18, col = 'blue', type = "b")
+lines(P, M2_IC[,3], pch = 17, col = 'green', type = "b")
+legend("bottomright", legend=c("IC1", "IC2", "IC3"),
+       col=c("red", "blue", "Green"), lty = 1, cex=0.8)
+```
+
+### Question 2.6
+```{r}
+set.seed(10)
+# Generate 1000 sets of size 100 using model M1
+n_samples <- 100
+M1_set_100 <- matrix(0, 100, 1000)
+for (i in 1:1000) {
+  M1 <- rep(0, 100)
+  for (j in 6:n_samples) {
+    M1[j] <- 0.434 * M1[j-1] + 0.217 * M1[j-2] + 0.145 * M1[j-3] + 0.108 * M1[j-4] + 
+      0.087 * M1[j-5] + rnorm(1)
+  }
+  M1_set_100[, i] <- M1
+}
+```
+
+```{r}
+IC_count <- matrix(0, 3, 10)
+for (i in 1:1000) {
+  IC <- Compute_IC(M1_set_100[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
+  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
+  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
+  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
 }
 
-cbind(M1_IC1, M1_IC2, M1_IC3)
-cbind(M2_IC1, M2_IC2, M2_IC3)
+# Table of counts of the selected model by IC1, IC2 and IC3
+IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
+colnames(IC_count) <- c(1:10)
+IC_count
+```
+
+### Question 2.7
+```{r}
+set.seed(10)
+# Generate 1000 sets of size 15 using model M1
+n_samples <- 15
+M1_set_15 <- matrix(0, n_samples, 1000)
+for (i in 1:1000) {
+  M1 <- rep(0, n_samples)
+  for (j in 6:n_samples) {
+    M1[j] <- 0.434 * M1[j-1] + 0.217 * M1[j-2] + 0.145 * M1[j-3] + 0.108 * M1[j-4] + 
+      0.087 * M1[j-5] + rnorm(1)
+  }
+  M1_set_15[, i] <- M1
+}
 ```
 
 ```{r}
-# Plotting the criteria for the M1
-plot(P, M1_IC1, type = "b", pch = 19, col = 'red', ylim = c(-0.5, 1.3),
-     main = "IC Values for M1", ylab = "IC")
-lines(P, M1_IC2, pch = 18, col = 'blue', type = "b")
-lines(P, M1_IC3, pch = 17, col = 'green', type = "b")
-legend("bottomright", legend=c("IC1", "IC2", "IC3"),
-       col=c("red", "blue", "Green"), lty = 1, cex=0.8)
+IC_count <- matrix(0, 3, 10)
+for (i in 1:1000) {
+  IC <- Compute_IC(M1_set_15[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
+  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
+  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
+  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
+}
+
+# Table of counts of the selected model by IC1, IC2 and IC3
+IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
+colnames(IC_count) <- c(1:10)
+IC_count
+```
+
+### Question 2.8
+```{r}
+set.seed(10)
+# Generate 1000 sets of size 100 using model M2
+n_samples <- 100
+M2_set_100 <- matrix(0, n_samples, 1000)
+for (i in 1:1000) {
+  M2 <- rep(0, n_samples)
+  for (j in 3:n_samples) {
+    M2[j] <- 0.682 * M2[j-1] + 0.346 * M2[j-2] + rnorm(1)
+  }
+  M2_set_100[, i] <- M2
+}
 ```
 
 ```{r}
-# Plotting the criteria for the M2
-plot(P, M2_IC1, type = "b", pch = 19, col = 'red', ylim = c(-0.5, 1.3),
-     main = "IC Values for M2", ylab = "IC")
-lines(P, M2_IC2, pch = 18, col = 'blue', type = "b")
-lines(P, M2_IC3, pch = 17, col = 'green', type = "b")
-legend("bottomright", legend=c("IC1", "IC2", "IC3"),
-       col=c("red", "blue", "Green"), lty = 1, cex=0.8)
+IC_count <- matrix(0, 3, 10)
+for (i in 1:1000) {
+  IC <- Compute_IC(M2_set_100[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
+  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
+  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
+  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
+}
+
+# Table of counts of the selected model by IC1, IC2 and IC3
+IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
+colnames(IC_count) <- c(1:10)
+IC_count
 ```
 
+```{r}
+set.seed(10)
+# Generate 1000 sets of size 15 using model M1
+n_samples <- 15
+M2_set_15 <- matrix(0, n_samples, 1000)
+for (i in 1:1000) {
+  M2 <- rep(0, n_samples)
+  for (j in 3:n_samples) {
+    M2[j] <- 0.682 * M2[j-1] + 0.346 * M2[j-2] + rnorm(1)
+  }
+  M2_set_15[, i] <- M2
+}
+```
+
+```{r}
+IC_count <- matrix(0, 3, 10)
+for (i in 1:1000) {
+  IC <- Compute_IC(M2_set_15[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
+  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
+  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
+  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
+}
+
+# Table of counts of the selected model by IC1, IC2 and IC3
+IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
+colnames(IC_count) <- c(1:10)
+IC_count
+```
