@@ -1,6 +1,6 @@
 ---
 title: "MAST90083 Assignment 1"
-author: "Haonan Zhong"
+author: "Haonan Zhong 867492"
 output: pdf_document
 ---
 
@@ -10,35 +10,35 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Question 1.1
 ```{r}
-library("MASS")
 library("ISLR")
-suppressMessages(library("glmnet"))
+# Load the Hitters dataset
 data(Hitters)
-# Remove rows with NA in the Salary column
-Hitters <- Hitters[!is.na(Hitters$Salary),]
+# Remove all rows from Hitters dataset that have entry NA in the Salary column
+hitters <- Hitters[!is.na(Hitters$Salary),]
 ```
 
 ### Question 1.2
 ```{r}
 # Construct design matrix and response variable
-x <- model.matrix(~.-1, data = subset(Hitters, select = -(Salary)))
-y <- Hitters$Salary
+x <- model.matrix(Salary~., data = hitters)[,-1]
+y <- hitters$Salary
 lambda <- 10^seq(10, -2, length = 100)
 
+suppressMessages(library("glmnet"))
 # Estimate ridge coefficients for 100 lambda values
-coef_estimate <- glmnet(x, y, alpha = 0, lambda = lambda)
-# Observe the coefficents for the largest lambda
-coef(coef_estimate)[,1]
-#Observe the coefficients for the smallest lambda
-coef(coef_estimate)[,100]
+ridge_model <- glmnet(x, y, lambda = lambda, alpha = 0)
+# Observe the coefficients for the largest lambda
+coef(ridge_model)[,1]
+# Observe the coefficients for the smallest lambda
+coef(ridge_model)[,100]
 ```
-As we can see from the output above, coefficients for the largest lambda is much more closer to 0. Which is quite reasonable, as the effect of shrinkage penalty grows as $\lambda$ increases, and the ridge regression coefficients will get closer to 0.
+As we can see from the output above, coefficients of the largest lambda is much more closer to 0, which well reflects the effect of shrinkage penalization, as $\lambda$ increases, the ridge regression coefficients will shrink closer to 0.
 
 ### Question 1.3
 ```{r}
 l2norm <- rep(0, length(lambda))
-for (i in 1:100) {
-  l2norm[i] <- norm(coef_estimate$beta[,i], type="2")
+for (i in 1:length(lambda)) {
+  l2norm[i] <- norm(ridge_model$beta[,i], type="2")
 }
 plot(log(lambda), l2norm, xlab = "Logrithm of lambda", ylab = "l2-norm of coefficients")
 ```
@@ -49,14 +49,14 @@ mse <- rep(0, length(lambda))
 for (i in 1:length(lambda)) {
   prediction <- rep(0, length(y))
   for (j in 1:length(y)) {
-    prediction[j] <- t(x[j,]) %*% matrix(coef_estimate$beta[, i])
+    prediction[j] <- t(x[j,]) %*% matrix(ridge_model$beta[, i])
   }
   mse[i] <- mean((y - prediction)^2)
 }
 
 plot(log(lambda), mse, xlab = "Logrithm of lambda", ylab = "Mean Squared Error")
 ```
-We cannot really say anything about the optimal value of $\lambda$ with $l2$-norm, since it only tells us the size of the coefficients. On the other hand, mean squared error can tell us how accurate the coefficients are in terms of estimating the our response variable, $Salary$.
+We cannot really say anything about the optimal value of $\lambda$ with $l2$-norm, since it only tells us the change of size of the coefficients. On the other hand, mean squared error can tell us the model accuracy in terms of estimating the response variable, $Salary$.
 
 ### Question 1.4
 ```{r}
@@ -71,23 +71,25 @@ x_test <- x[-n_train, ]
 y_test <- y[-n_train]
 
 # Performing 10-fold cross validation
-(train_cv <- cv.glmnet(x_train, y_train, lambda = lambda, type.measure = "mse", alpha = 0))
-plot(train_cv)
+(ridge_cv <- cv.glmnet(x_train, y_train, lambda = lambda, type.measure = "mse", alpha = 0))
+# Plot the cross-validation result
+plot(ridge_cv)
 ```
-As the result above depicted, the model has the lowest mean squared error at 95,669 when $\lambda = 305.4$. Next, we will evaluate the test mean squared error.
+As the result above depicted, the model has the lowest mean squared error at 95606 when $\lambda = 305.4$. Next, we will evaluate the test mean squared error.
 ```{r}
-test_pred <- predict(train_cv$glmnet.fit, train_cv$lambda.min, newx = x_test)
+test_pred <- predict(ridge_cv$glmnet.fit, ridge_cv$lambda.min, newx = x_test)
 mean((y_test - test_pred)^2)
 ```
-The corresponding MSE for $\lambda = 305.4$ on the testing set is 143265.4.
+The corresponding MSE for $\lambda = 305.4$ on the testing set is 143198.3.
 
 ```{r}
 # Refit the ridge regression model on the full data set using the lambda chosen by CV
-new_model <- glmnet(x, y, alpha = 0, lambda = train_cv$lambda.min)
-coef(new_model)
+ridge_new_model <- glmnet(x, y, alpha = 0, lambda = ridge_cv$lambda.min)
+coef(ridge_new_model)
 ```
 
 ```{r}
+# Fit a comparison model using ordinary least square
 ols_model <- lm(Salary ~ ., data = Hitters)
 ols_model$coefficients
 ```
@@ -96,6 +98,7 @@ As we can see from the output above, the coefficients of the ridge regression mo
 ### Question 1.5
 ```{r}
 set.seed(10)
+# Plot the cross-validation result
 (lasso_cv <- cv.glmnet(x_train, y_train, alpha = 1, lambda = lambda, type.measure = "mse"))
 plot(lasso_cv)
 ```
@@ -113,21 +116,21 @@ coef(lasso_new_model)
 Finally, we refitted the lasso regression model using the $\lambda = 18.74$ selected from cross-validation. As we can see, most of the coefficients were shrinked to zero, thus, less important variables are eliminated when penalized, resulted in a sparse model compare to ordinary least square and ridge regression model.
 
 ### Question 2.1
-The number of effective sample size $T$ is $n-p$.
+As we can see from the model, the first $p$ samples are used as the predictors for the first response, and the response starts from $p+1$. Therefore, the number of effective sample size $T$ is $n-p$.
 
 ### Question 2.2
-The model can be consider as $y = X\beta + \eta$, and it can be presented as,
-$$\begin{bmatrix} y_{p+1} \\ y_{p+2} \\ .\\.\\.\\y_{n} \end{bmatrix} = \begin{bmatrix} y_{p}&y_{p-1}&...& y_{1} \\ y_{p+1}&y_{p}&...& y_{2} \\ .&.&.&.\\.&.&.&.\\.&.&.&.\\y_{n-1}&y_{n-2}&...& y_{n-p} \end{bmatrix}\times\begin{bmatrix} \phi_{1} \\ \phi_{2} \\ .\\.\\.\\\phi_{p} \end{bmatrix}$$.
+The model can be view as a variation of $y = X\phi + \eta$,
+$$
+\begin{bmatrix} y_{p+1} \\ y_{p+2} \\ .\\.\\.\\y_{n} \end{bmatrix} = \begin{bmatrix} y_{p}&y_{p-1}&...& y_{1} \\ y_{p+1}&y_{p}&...& y_{2} \\ .&.&.&.\\.&.&.&.\\.&.&.&.\\y_{n-1}&y_{n-2}&...& y_{n-p} \end{bmatrix}\times\begin{bmatrix} \phi_{1} \\ \phi_{2} \\ .\\.\\.\\\phi_{p} \end{bmatrix}
+$$.
 
 Therefore, to obtain the least square estimator, we can apply the normal equation $\hat{\phi} = (X^{T}X)^{-1}X^{T}y$,\newline where,
-$$X = \begin{bmatrix} y_{p}&y_{p-1}&...& y_{1} \\ y_{p+1}&y_{p}&...& y_{2} \\ .&.&.&.\\.&.&.&.\\.&.&.&.\\y_{n-1}&y_{n-2}&...& y_{n-p} \end{bmatrix} \;and\; y= \begin{bmatrix} y_{p+1} \\ y_{p+2} \\ .\\.\\.\\y_{n} \end{bmatrix}$$
+$$X = \begin{bmatrix} y_{p}&y_{p-1}&...& y_{1} \\ y_{p+1}&y_{p}&...& y_{2} \\ .&.&.&.\\.&.&.&.\\.&.&.&.\\y_{n-1}&y_{n-2}&...& y_{n-p} \end{bmatrix} \;\;and\;\; y= \begin{bmatrix} y_{p+1} \\ y_{p+2} \\ .\\.\\.\\y_{n} \end{bmatrix}$$
 
 ### Question 2.3
-Given that $$ \sigma^2_{p} = \frac{RSS^2}{T} = \frac{||Y-\hat{Y}||^2}{T} $$ \newline Therefore,
+Given that $$ \sigma^2_{p} = \frac{RSS^2}{T} = \frac{||Y-\hat{Y}||^2}{T} $$ \newline Therefore, replacing $T$ with the effective sample size we have,
 
-$$ \sigma^2_{p} = \frac{||Y-X\hat{\phi}||^2}{n-p} = \frac{(X\hat{\phi}-Y)^T(X\hat{\phi}-Y)}{n-p} = \frac{Y^TY-Y^TX\hat{\phi}-\hat{\phi}^TX^TY + \hat{\phi}^TX^TX\hat{\phi}}{n-p}$$
-where,
-$$X = \begin{bmatrix} y_{p}&y_{p-1}&...& y_{1} \\ y_{p+1}&y_{p}&...& y_{2} \\ .&.&.&.\\.&.&.&.\\.&.&.&.\\y_{n-1}&y_{n-2}&...& y_{n-p} \end{bmatrix} \;and\; y= \begin{bmatrix} y_{p+1} \\ y_{p+2} \\ .\\.\\.\\y_{n} \end{bmatrix}$$
+$$ \sigma^2_{p} = \frac{||Y-\hat{Y}||^2}{T} = \frac{||Y-X\hat{\phi}||^2}{n-p} $$
 
 ### Question 2.4
 ```{r}
@@ -149,20 +152,9 @@ for (i in 3:n_samples) {
 }
 ```
 
-\newpage
-
 ### Question 2.5
 ```{r}
-P <- c(1:10)
-# Here we will construct the response variable and the matrix X using the samples
-Create_Response <- function(n, p, model) {
-  y <- rep(0, n-p)
-  for (t in (p+1):n) {
-    y[t-p] <- model[t]
-  }
-  return(y)
-}
-
+# Here we will construct X using the samples
 Create_X <- function(n, p, model) {
   X <- matrix(0, n-p, p)
   for (i in 0:(p-1)) { 
@@ -173,53 +165,31 @@ Create_X <- function(n, p, model) {
   return(X)
 }
 
-Compute_IC1 <- function(sigma2, p, T) {
-  return(log(sigma2) + (2 * (p+1)/T))
-}
-
-Compute_IC2 <- function(sigma2, p, T) {
-  return(log(sigma2) + ((T + p)/(T - p - 2)))
-}
-
-Compute_IC3 <- function(sigma2, p, T) {
-  return(log(sigma2) + (p * log(T)/T))
-}
-
 # Compute the ICs
-Compute_IC <- function(model, n, IC1, IC2, IC3) {
+Compute_IC <- function(model, n, IC1, IC2, IC3, P) {
   for (p in P) {
     T <- n-p
-    tmp_y <- Create_Response(n_samples, p, model)
+    tmp_y <- model[-c(1:p)]
     tmp_X <- Create_X(n_samples, p, model)
-    coefficient <- ginv(t(tmp_X) %*% tmp_X) %*% t(tmp_X) %*% matrix(tmp_y)
-    pred <- tmp_X %*% coefficient
-    sigma2 <- sum((model[c((p+1):n)] - pred)^2)/T
+    phi_hat <- solve(t(tmp_X) %*% tmp_X) %*% t(tmp_X) %*% matrix(tmp_y)
+    sigma2 <- sum((model[c((p+1):n)] - (tmp_X %*% phi_hat))^2)/T
     
     # Compute the criteria
-    IC1[p] <- Compute_IC1(sigma2, p, T)
-    IC2[p] <- Compute_IC2(sigma2, p, T)
-    IC3[p] <- Compute_IC3(sigma2, p, T)
+    IC1[p] <- log(sigma2) + (2 * (p+1)/T)
+    IC2[p] <- log(sigma2) + ((T + p)/(T - p - 2))
+    IC3[p] <- log(sigma2) + (p * log(T)/T)
   }
   return(cbind(IC1, IC2, IC3))
 }
 ```
 
 ```{r}
+P <- c(1:10)
 n_samples <- 100
-M1_IC1 <- rep(0, 10)
-M1_IC2 <- rep(0, 10)
-M1_IC3 <- rep(0, 10)
-M1_IC <- Compute_IC(M1, n_samples, M1_IC1, M1_IC2, M1_IC3)
-
-M2_IC1 <- rep(0, 10)
-M2_IC2 <- rep(0, 10)
-M2_IC3 <- rep(0, 10)
-M2_IC <- Compute_IC(M2, n_samples, M2_IC1, M2_IC2, M2_IC3)
-
 # Values of IC for model M1
-M1_IC
+(M1_IC <- Compute_IC(M1, n_samples, rep(0, 10), rep(0, 10), rep(0, 10), P))
 # Values of IC for model M2
-M2_IC
+(M2_IC <- Compute_IC(M2, n_samples, rep(0, 10), rep(0, 10), rep(0, 10), P))
 ```
 
 
@@ -248,9 +218,10 @@ legend("bottomright", legend=c("IC1", "IC2", "IC3"),
 set.seed(10)
 # Generate 1000 sets of size 100 using model M1
 n_samples <- 100
-M1_set_100 <- matrix(0, 100, 1000)
-for (i in 1:1000) {
-  M1 <- rep(0, 100)
+n_sets <- 1000
+M1_set_100 <- matrix(0, n_samples, n_sets)
+for (i in 1:n_sets) {
+  M1 <- rep(0, n_samples)
   for (j in 6:n_samples) {
     M1[j] <- 0.434 * M1[j-1] + 0.217 * M1[j-2] + 0.145 * M1[j-3] + 0.108 * M1[j-4] + 
       0.087 * M1[j-5] + rnorm(1)
@@ -260,18 +231,24 @@ for (i in 1:1000) {
 ```
 
 ```{r}
-IC_count <- matrix(0, 3, 10)
-for (i in 1:1000) {
-  IC <- Compute_IC(M1_set_100[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
-  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
-  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
-  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
+IC_count_func <- function(model_set, n_samples, n_sets, P) {
+  IC_count <- matrix(0, 3, length(P))
+  for (i in 1:1000) {
+    IC <- Compute_IC(model_set[, i], n_samples, 
+                     rep(0, length(P)), rep(0, length(P)), rep(0,  length(P)), P)
+    IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
+    IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
+    IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
+  }
+
+  IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
+  colnames(IC_count) <- P
+  return(IC_count)
 }
 
-# Table of counts of the selected model by IC1, IC2 and IC3
-IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
-colnames(IC_count) <- c(1:10)
-IC_count
+P <- c(1:10)
+# Print table of counts of the selected model by IC1, IC2 and IC3
+IC_count_func(M1_set_100, n_samples, n_sets, P)
 ```
 
 ### Question 2.7
@@ -279,8 +256,8 @@ IC_count
 set.seed(10)
 # Generate 1000 sets of size 15 using model M1
 n_samples <- 15
-M1_set_15 <- matrix(0, n_samples, 1000)
-for (i in 1:1000) {
+M1_set_15 <- matrix(0, n_samples, n_sets)
+for (i in 1:n_sets) {
   M1 <- rep(0, n_samples)
   for (j in 6:n_samples) {
     M1[j] <- 0.434 * M1[j-1] + 0.217 * M1[j-2] + 0.145 * M1[j-3] + 0.108 * M1[j-4] + 
@@ -288,21 +265,10 @@ for (i in 1:1000) {
   }
   M1_set_15[, i] <- M1
 }
-```
 
-```{r}
-IC_count <- matrix(0, 3, 10)
-for (i in 1:1000) {
-  IC <- Compute_IC(M1_set_15[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
-  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
-  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
-  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
-}
-
-# Table of counts of the selected model by IC1, IC2 and IC3
-IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
-colnames(IC_count) <- c(1:10)
-IC_count
+P <- c(1:6)
+# Print table of counts of the selected model by IC1, IC2 and IC3
+IC_count_func(M1_set_15, n_samples, n_sets, P)
 ```
 
 ### Question 2.8
@@ -310,56 +276,159 @@ IC_count
 set.seed(10)
 # Generate 1000 sets of size 100 using model M2
 n_samples <- 100
-M2_set_100 <- matrix(0, n_samples, 1000)
-for (i in 1:1000) {
+M2_set_100 <- matrix(0, n_samples, n_sets)
+for (i in 1:n_sets) {
   M2 <- rep(0, n_samples)
   for (j in 3:n_samples) {
     M2[j] <- 0.682 * M2[j-1] + 0.346 * M2[j-2] + rnorm(1)
   }
   M2_set_100[, i] <- M2
 }
-```
 
-```{r}
-IC_count <- matrix(0, 3, 10)
-for (i in 1:1000) {
-  IC <- Compute_IC(M2_set_100[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
-  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
-  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
-  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
-}
-
-# Table of counts of the selected model by IC1, IC2 and IC3
-IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
-colnames(IC_count) <- c(1:10)
-IC_count
+P <- c(1:10)
+# Print table of counts of the selected model by IC1, IC2 and IC3
+IC_count_func(M2_set_100, n_samples, n_sets, P)
 ```
 
 ```{r}
 set.seed(10)
-# Generate 1000 sets of size 15 using model M1
+# Generate 1000 sets of size 15 using model M2
 n_samples <- 15
-M2_set_15 <- matrix(0, n_samples, 1000)
-for (i in 1:1000) {
+M2_set_15 <- matrix(0, n_samples, n_sets)
+for (i in 1:n_sets) {
   M2 <- rep(0, n_samples)
   for (j in 3:n_samples) {
     M2[j] <- 0.682 * M2[j-1] + 0.346 * M2[j-2] + rnorm(1)
   }
   M2_set_15[, i] <- M2
 }
+
+P <- c(1:6)
+# Print table of counts of the selected model by IC1, IC2 and IC3
+IC_count_func(M2_set_15, n_samples, n_sets, P)
+```
+
+### Question 2.9
+As we can see from the four tables above, the suggested value of $P$ given by the three criteria tend to be small when $n=100$ for both $M1$ and $M2$, as most of the count are clustered between $p=2$ and $p=3$, and the number of count decreases as the order of $p$ increases, which some what resembles the trend of the plots from question 2.5. \newline \newline
+On the other hand, the maximum order of $p$ when $n=15$ is set to 6. We can observe that most of the count are concentrated at $p=1$, and the count decreases as $p$ increases. But for $IC_1$ and $IC_3$, we can see there's a slight increase of count towards the end, when $p=6$.
+
+### Question 2.10
+Assuming the true model order is $p_0$ and we fit a candidate model of order $p_0 + L$, then the criterion selects the overfitted model if $IC_{p_0+L} < IC_{p_0}$. \newline
+Therefore, the expression of the probability of overfitting for $IC_1$ is,
+$$P(IC_{1p_0+L} < IC_{1p_0}) = P(log(\sigma^2_{p_0+L}) + \frac{2(p_0+L+1)}{n-p_0-L} < log(\sigma^2_{p_0}) + \frac{2(p_0+1)}{n-p_0})$$
+$$\sigma^2_p = \frac{RSS}{T} \Rightarrow log(\sigma^2_p) = log(RSS) - log(T)$$
+$$
+\begin{aligned}
+&P(log(RSS_{p_0+L}) - log(n-p_0-L) + \frac{2(p_0+L+1)}{n-p_0-L} < log(RSS_{p_0}) - log(n-p_0) + \frac{2(p_0+1)}{n-p_0}) \\
+&= P(log(\frac{RSS_{p_0+L}}{RSS_{p_0}}) < log(\frac{n-p_0-L}{n-p_0})+\frac{-2L(1+n)}{(n-p_0-L)(n-p_0)}) \\
+&= P(log(\frac{RSS_{p_0}}{RSS_{p_0+L}}) > log(\frac{n-p_0}{n-p_0-L})+\frac{2L(1+n)}{(n-p_0-L)(n-p_0)}) \\
+&= P(\frac{RSS_{p_0}}{RSS_{p_0+L}} - 1 > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2L(1+n)}{(n-p_0-L)(n-p_0)}) - 1) \\
+&= P(\frac{RSS_{p_0} - RSS_{p_0+L}}{RSS_{p_0+L}} > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2L(1+n)}{(n-p_0-L)(n-p_0)}) -1) \\
+&= P(F_{L,n-p_0-L} > \frac{n-p_0-L}{L}\cdot(\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2L(1+n)}{(n-p_0-L)(n-p_0)})-1))
+\end{aligned}
+$$
+The expression of the probability of overfitting for $IC_2$ is,
+$$P(IC_{2p_0+L} < IC_{2p_0}) = P(log(\sigma^2_{p_0+L}) + \frac{n-p_0-L+p_0+L}{n-p_0-L-p_0-L-2} < log(\sigma^2_{p_0}) + \frac{n-p_0+p_0}{n-p_0-p_0-2})$$
+$$
+\begin{aligned}
+&P(log(RSS_{p_0+L}) - log(n-p_0-L) + \frac{n}{n-2p_0-2L-2} < log(RSS_{p_0}) - log(n-p_0) + \frac{n}{n-2p_0-2}) \\
+&= P(log(\frac{RSS_{p_0+L}}{RSS_{p_0}}) < log(\frac{n-p_0-L}{n-p_0})+\frac{-2nL}{(n-2p_0-2)(n-2p_0-2L-2)}) \\
+&= P(log(\frac{RSS_{p_0}}{RSS_{p_0+L}}) > log(\frac{n-p_0}{n-p_0-L})+\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)}) \\
+&= P(\frac{RSS_{p_0}}{RSS_{p_0+L}} -1 > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)})-1) \\
+&= P(\frac{RSS_{p_0} - RSS_{p_0+L}}{RSS_{p_0+L}} > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)})-1) \\
+&= P(F_{L,n-p_0-L} > \frac{n-p_0-L}{L}\cdot (\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)})-1))
+\end{aligned}
+$$
+The expression of the probability of overfitting for $IC_3$ is,
+$$P(IC_{3p_0+L} < IC_{3p_0}) = P(log(\sigma^2_{p_0+L}) + \frac{(p_0+L)log(n-p_0-L)}{n-p_0-L} < log(\sigma^2_{p_0}) + \frac{p_0log(n-p_0)}{n-p_0})$$
+$$
+\begin{aligned}
+&P(log(RSS_{p_0+L}) - log(n-p_0-L) + \frac{(p_0+L)log(n-p_0-L)}{n-p_0-L} < log(RSS_{p_0}) - log(n-p_0) + \frac{p_0log(n-p_0)}{n-p_0}) \\
+&= P(log(\frac{RSS_{p_0+L}}{RSS_{p_0}}) < log(\frac{n-p_0-L}{n-p_0})+\frac{p_0log(n-p_0)}{n-p_0}-\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}) \\
+&= P(log(\frac{RSS_{p_0}}{RSS_{p_0+L}}) > log(\frac{n-p_0}{n-p_0-L})-\frac{p_0log(n-p_0)}{n-p_0}+\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}) \\
+&= P(\frac{RSS_{p_0}}{RSS_{p_0+L}}-1 > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0})-1) \\
+&= P(\frac{RSS_{p_0} - RSS_{p_0+L}}{RSS_{p_0+L}} > \frac{n-p_0}{n-p_0-L}\cdot exp(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0})-1) \\
+&= P(F_{L,n-p_0-L} > \frac{n-p_0-L}{L}\cdot (\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0})-1))
+\end{aligned}
+$$
+\newpage
+
+### Question 2.11
+```{r}
+Compute_F <- function(n, p, L) {
+  F1 <- ((n-p-L)/L)*(((n-p)/(n-p-L))*exp((2*L*(1+n))/((n-p-L)*(n-p))) - 1)
+  F2 <- ((n-p-L)/L)*(((n-p)/(n-p-L))*exp((2*n*L)/((n-2*p-2)*(n-2*p-2*L-2))) - 1)
+  F3 <- ((n-p-L)/L)*(((n-p)/(n-p-L))*exp(((p+L)*log(n-p-L))/(n-p-L)-(p*log(n-p))/(n-p)) - 1)
+  
+  return(cbind(F1, F2, F3))
+}
+
+Compute_prob <- function(n, p, L) {
+  prob <- matrix(0, 3, length(L))
+   for (l in L) {
+     F_stat <- Compute_F(n, p, l)
+     prob[1, l] <- pf(F_stat[1], l, n-p-l, lower.tail = F)
+     prob[2, l] <- pf(F_stat[2], l, n-p-l, lower.tail = F)
+     prob[3, l] <- pf(F_stat[3], l, n-p-l, lower.tail = F)
+   }
+  prob <- data.frame(prob, row.names = c("IC1", "IC2", "IC3"))
+  colnames(prob) <- L
+  return(prob)
+}
 ```
 
 ```{r}
-IC_count <- matrix(0, 3, 10)
-for (i in 1:1000) {
-  IC <- Compute_IC(M2_set_15[, i], n_samples, rep(0, 10), rep(0, 10), rep(0, 10))
-  IC_count[1, which(IC[,1] == min(IC[,1]))] <- IC_count[1, which(IC[,1] == min(IC[,1]))] + 1
-  IC_count[2, which(IC[,2] == min(IC[,2]))] <- IC_count[2, which(IC[,2] == min(IC[,2]))] + 1
-  IC_count[3, which(IC[,3] == min(IC[,3]))] <- IC_count[3, which(IC[,3] == min(IC[,3]))] + 1
-}
-
-# Table of counts of the selected model by IC1, IC2 and IC3
-IC_count <- data.frame(IC_count, row.names = c("IC1", "IC2", "IC3"))
-colnames(IC_count) <- c(1:10)
-IC_count
+L <- c(1:8)
+# tables of the calculated probabilities for M1 in the cases n = 25
+n_samples <- 25
+Compute_prob(n_samples, 5, L)
 ```
+```{r}
+# tables of the calculated probabilities for M1 in the cases n = 100
+n_samples <- 100
+Compute_prob(n_samples, 5, L)
+```
+
+### Question 2.12
+As the tables from the above question suggest, when the number of samples are small $(n = 25)$, model will be overfitted when we fit 1 extra parameters $L=1$ suggested by the expression derived from $IC_1$ and $IC_2$, as the p-value is less than the significance level of 0.05, while the model will be overfitted when we add 2 extra parameters $L=2$ suggested by $IC_1$. And as we add more parameters the p-value will decreases even more, suggesting more serious overfitting.
+
+On the other hand, when the number of samples are $100$, model will be overfitted when we fit 2 extra parameters $L=2$ suggested by $IC_1$ and $IC_2$, as the p-value is smaller than the significance level of 0.05, while $IC_3$ suggest that model will be overfitted when we add 1 extra parameters $L=1$. However, comparing to $n=25$, the p-values decreases slower when $n=100$.
+
+### Question 2.13
+Here we will apply limits to the expressions that we derived above. \newline
+For $IC_1$,
+$$
+\begin{aligned}
+&\lim_{n\to\infty} \frac{n-p_0-L}{L}\cdot(\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2L(1+n)}{(n-p_0-L)(n-p_0)})-1) \\
+= &\lim_{n\to\infty} \frac{n-p_0}{L} \cdot \lim_{n\to\infty}exp(\frac{2L(1+n)}{(n-p_0-L)(n-p_0)})-\lim_{n\to\infty}\frac{n-p_0-L}{L} \\
+=& \frac{1}{L}\lim_{n\to\infty}n-p_0 \cdot exp(\lim_{n\to\infty}\frac{2L(1+n)}{(n-p_0-L)(n-p_0)})-\frac{1}{L}\lim_{n\to\infty}n-p_0-L\\
+=&\frac{1}{L}\lim_{n\to\infty}n-p_0 \cdot exp(0) - \frac{1}{L}\lim_{n\to\infty}n-p_0-L \\
+=& \frac{1}{L}\lim_{n\to\infty}n-p_0-n+p_0+L \\
+= &1
+\end{aligned}
+$$
+For $IC_2$,
+$$
+\begin{aligned}
+&\lim_{n\to\infty} \frac{n-p_0-L}{L}\cdot (\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)})-1)\\
+=&\lim_{n\to\infty}\frac{n-p_0}{L} \lim_{n\to\infty}exp(\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)}) -\lim_{n\to\infty}\frac{n-p_0-L}{L} \\
+=&\frac{1}{L}\lim_{n\to\infty}n-p_0 \cdot exp(\lim_{n\to\infty}\frac{2nL}{(n-2p_0-2)(n-2p_0-2L-2)}) - \frac{1}{L}\lim_{n\to\infty}n-p_0-L \\
+=&\frac{1}{L}\lim_{n\to\infty}n-p_0\cdot exp(0)-\frac{1}{L}\lim_{n\to\infty}n-p_0-L \\
+=& \frac{1}{L}\lim_{n\to\infty}n-p_0-n+p_0+L \\
+=&1
+\end{aligned}
+$$
+For $IC_3$,
+$$
+\begin{aligned}
+&\lim_{n\to\infty} \frac{n-p_0-L}{L}\cdot (\frac{n-p_0}{n-p_0-L}\cdot exp(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0})-1) \\
+=&\lim_{n\to\infty}\frac{n-p_0}{L} \lim_{n\to\infty}exp(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0}) -\lim_{n\to\infty}\frac{n-p_0-L}{L} \\
+=&\frac{1}{L}\lim_{n\to\infty}n-p_0 \cdot exp(\lim_{n\to\infty}(\frac{(p_0+L)log(n-p_0-L)}{n-p_0-L}-\frac{p_0log(n-p_0)}{n-p_0}))-\frac{1}{L}\lim_{n\to\infty}n-p_0-L\\
+=&\frac{1}{L}\lim_{n\to\infty}n-p_0\cdot exp(0)-\frac{1}{L}\lim_{n\to\infty}n-p_0-L \\
+=& \frac{1}{L}\lim_{n\to\infty}n-p_0-n+p_0+L \\
+=&1
+\end{aligned}
+$$
+
+### Question 2.14
+The important observation we can make from above is that, as the sample size $n$ tends to infinity, for all three information criteria, the critical value of the F distribution will converge to 1, in which the chance of overfitting is reduced when the sample size $n$ tends to infinity.
