@@ -1,6 +1,6 @@
 ---
 title: "MAST90083 Assignment 2"
-author: "Haonan Zhong"
+author: "Haonan Zhong 867492"
 output: pdf_document
 ---
 
@@ -12,7 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(HRW)
 data(WarsawApts)
-WarsawApts <- WarsawApts[order(WarsawApts$construction.date),]
+# Reorder the dataset base on x
+WarsawApts <- WarsawApts[order(WarsawApts$construction.date), ]
 
 x <- WarsawApts$construction.date
 y <- WarsawApts$areaPerMzloty
@@ -35,14 +36,14 @@ construct_basis <- function(x, knot) {
   return(z_matrix)
 }
 
-z <- construct_basis(x, k)
+z <- construct_basis(sort(x), k)
 ```
 
 ```{r}
 plot(x, z[,1], type = "l", ylim = c(-1, 2), xlab = "Construction Date (Year)",
      ylab = "Linear Spline Basis", main = "Figure 1a 20 Linear Spline Basis")
-for (i in 2:dim(z)[2]) {
-  lines(sort(x), z[, i]) 
+for (i in 2:20) {
+  lines(x, z[, i]) 
 }
 ```
 
@@ -106,7 +107,7 @@ min_20 <- which(GCV_20 == min(GCV_20))
 ```{r}
 # Overlay the true plot with a fit of y
 plot(x, y, main = "Figure 1b Fitted Curve of 20 Basis")
-lines(x[order(x)], penalised_spline_20$fitted_y[, min_20][order(x)], col = "red", lwd = 2)
+lines(x, penalised_spline_20$fitted_y[, min_20], col = "red", lwd = 2)
 ```
 
 ```{r}
@@ -115,12 +116,12 @@ lines(x[order(x)], penalised_spline_20$fitted_y[, min_20][order(x)], col = "red"
 probVec <- seq(0, 1, length = 62)[2:61]
 k <- quantile(unique(x), probs = probVec)
 
-z <- construct_basis(sort(x), k)
+z <- construct_basis(x, k)
 
-plot(sort(x), z[,1], typ = "l", ylim = c(-1,2), xlab = "Construction Date (Year)", 
+plot(x, z[,1], typ = "l", ylim = c(-1,2), xlab = "Construction Date (Year)", 
      ylab = "Linear Spline Basis", main = "Figure 1c 60 Linear Spline Basis")
-for (i in 2:dim(z)[2]) {
-  lines(sort(x), z[, i]) 
+for (i in 2:60) {
+  lines(x, z[, i]) 
 }
 ```
 
@@ -146,7 +147,7 @@ min_60 <- which(GCV_60 == min(GCV_60))
 ```{r}
 # Overlay the true plot with a fit of y
 plot(x, y, main = "Figure 1d Fitted Curve of 60 Basis")
-lines(x[order(x)], penalised_spline_60$fitted_y[, min_60][order(x)], col = "blue", lwd = 2)
+lines(x, penalised_spline_60$fitted_y[, min_60], col = "blue", lwd = 2)
 ```
 
 ```{r}
@@ -154,7 +155,7 @@ lines(x[order(x)], penalised_spline_60$fitted_y[, min_60][order(x)], col = "blue
 paste("MSE for 20 Linear Spline Basis:", RSS_error_20[min_20]/length(x))
 paste("MSE for 60 Linear Spline Basis:", penalised_spline_60$RSS_error[min_60]/length(x))
 ```
-As we can see from Figure 2d. the fitted curve for 60 linear spline basis appears to be more smooth compared to the one for 20 linear spline basis. However, from the computed mean squared square errors, we cannot see an improvement for the 60 spline basis, and it is even slight higher than the mean square error of the 20 spline basis.
+As we can see from Figure 1d. the fitted curve for 60 linear spline basis appears to be more smooth compared to the one for 20 linear spline basis. However, from the computed mean squared square errors, we cannot see an improvement for the 60 spline basis, and it is even slight higher than the mean square error of the 20 spline basis.
 
 ## Question 2.1
 ```{r}
@@ -165,7 +166,7 @@ KNN <- function(x, cur_x, k, y) {
   abs_dif <- abs(cur_x - x)
   
   # Sort the absolute difference and find the k nearest neighbors
-  indices <- sort(abs_dif, index.return = TRUE)$ix[1:k]
+  indices <- sort(abs_dif, index.return = TRUE)$ix[c(1:k)]
   
   # Use these indices and take their mean as the i-th estimate.
   return(mean(y[indices]))
@@ -195,7 +196,7 @@ par(mfrow=c(3,2))
 
 for (i in 1:length(k)) {
   plot(x, y, main = paste("KNN fit with K =", k[i]))
-  lines(x[order(x)], prediction[, i][order(x)], col = "red", lwd = 2)
+  lines(x, prediction[, i], col = "red", lwd = 2)
 }
 ```
 
@@ -203,7 +204,7 @@ for (i in 1:length(k)) {
 # Obtain k corresponding to the minimum MSE
 rbind(k, MSE)
 ```
-As we can see from the table, the minimum mean squared error is 293.9181 when $K=7$, which is quite similar to the one we obtained using penalised spline regression, but slightly higher.
+As we can see from the table, the minimum mean squared error is 293.9181 when $K=7$, which is quite similar to the one we obtained using penalised spline regression, but slightly lower. And we can see that the MSE increases as k increases.
 
 ## Question 2.3
 ```{r}
@@ -255,7 +256,7 @@ par(mfrow=c(3,2))
 
 for (i in 1:6) {
   plot(x, y, main = paste("Kernel", kernel_name[i]))
-  lines(x[order(x)], prediction[, i][order(x)], col = "red", lwd = 2)
+  lines(x, prediction[, i], col = "red", lwd = 2)
 }
 ```
 
@@ -266,11 +267,11 @@ colSums(((y - prediction)^2)/length(y))
 As we can see, triweight kernel gives the lowest mean square error at 272.9163.
 
 ## Question 3.1
-```{r}
+```{r message=FALSE}
 # Load libraries and image
-suppressMessages(library(plot.matrix))
-suppressMessages(library(png))
-suppressMessages(library(fields))
+library(plot.matrix)
+library(png)
+library(fields)
 
 I <- readPNG("CM.png")
 I <- I[,, 1]
@@ -282,34 +283,46 @@ plot(density(I))
 ```
 
 ## Question 3.2 and 3.3
+Here the expectation step will be computing
+$$
+P(Z_i=k|X_i) = \frac{P(Z_i=k)P(X_i|Z_i=k)}{\sum_{k=1}^{K}P(Z_i=k)P(X_i|Z_i=k)}
+$$
+The maximisation step will be updating the parameter estimates base on the following equations
+$$
+\hat{\pi_k} = \frac{\sum_{i=1}^{N}P(Z_i=k|X_i)}{N} \; \; \;
+\hat{\mu}_k= \frac{\sum_{i=1}^{N}P(Z_i=k|X_i)\cdot x_i}{\sum_{i=1}^{N}P(Z_i=k|X_i)} \;\;\;
+\hat{\sigma_{k}^{2}} = \frac{\sum_{i=1}^{N}P(Z_i=k|X_i)(x_i-\hat{\mu}_k)^2}{\sum_{i=1}^{N}P(Z_i=k|X_i)}
+$$
+
 ```{r}
-compute.prob.x.z <- function(X, pi.curr, mu.curr, sigma.curr) {
-  L <- matrix(NA, nrow = length(X), ncol = length(pi.curr))
-  for (k in seq_len(ncol(L))) {
-    L[, k] <- dnorm(X, mean = mu.curr[k], sd = sigma.curr[k]) * pi.curr[k]
+compute.posterior <- function(X, p.curr, mu.curr, sigma.curr) {
+  # compute the posterior of the latent variable given the current estimates and data
+  p<- matrix(NA, nrow = length(X), ncol = length(p.curr))
+  for (k in 1:length(p.curr)) {
+    p[, k] <- p.curr[k] * dnorm(X, mean = mu.curr[k], sd = sigma.curr[k])
   }
-  return(list(p = L))
+  return(list(p = p))
 }
 
-EM.iter <- function(X, pi.curr, mu.curr, sigma.curr) {
+EM.iter <- function(X, p.curr, mu.curr, sigma.curr) {
   
   # Expectation step
-  p <- compute.prob.x.z(X, pi.curr, mu.curr, sigma.curr)$p
+  p <- compute.posterior(X, p.curr, mu.curr, sigma.curr)$p
   
-  # Compute the responsibility
-  P_ik <- p / rowSums(p)
+  # Compute the posterior of latent variable given the observation
+  gamma_i <- p / rowSums(p)
   
-  # Maximisation step
-  pi.new <- colSums(P_ik) / sum(P_ik)
-  mu.new <- colSums(P_ik*X) / colSums(P_ik)
+  # Maximisation step: compute new parameter estimates
+  p.new <- colSums(gamma_i) / sum(gamma_i)
+  mu.new <- colSums(gamma_i * X) / colSums(gamma_i)
 
-  temp <- P_ik * (replicate(length(mu.new), X) - t(replicate(length(X), mu.new)))^2
-  sigma.new <- sqrt(colSums(temp)/colSums(P_ik))
+  temp <- gamma_i * (replicate(length(mu.new), X) - t(replicate(length(X), mu.new)))^2
+  sigma.new <- sqrt(colSums(temp) / colSums(gamma_i))
   
-  return(list(pi.new = pi.new, mu.new = mu.new, sigma.new = sigma.new))
+  return(list(p.new = p.new, mu.new = mu.new, sigma.new = sigma.new))
 }
 
-EM <- function(X, p, mu, sigma, epsilon = 1e-6, max.iter=100) {
+EM <- function(X, p, mu, sigma, epsilon = 1e-6) {
   p.curr <- p
   mu.curr <- mu
   sigma.curr <- sigma
@@ -317,41 +330,42 @@ EM <- function(X, p, mu, sigma, epsilon = 1e-6, max.iter=100) {
   
   delta <- 1
   count <- 1
-  while ((delta > epsilon)) {
+  
+  # keep updating until convergence
+  while (delta > epsilon) {
     # run EM to compute new estimates for the parameters
     EM.out <- EM.iter(X, p.curr, mu.curr, sigma.curr)
     count <- count + 1
-    # print the new estimates
-    print(round(c(EM.out$mu.new, EM.out$sigma.new, EM.out$pi.new), 4))
+    # print the new estimates of the current iteration
+    print(round(c(EM.out$mu.new, EM.out$sigma.new, EM.out$p.new), 4))
     
     # compute the stopping criteria
-    e.new <- sum(EM.out$mu.new - mu.curr) +
-      sum(EM.out$sigma.new - sigma.curr)
+    e.new <- sum(EM.out$mu.new - mu.curr) + sum(EM.out$sigma.new - sigma.curr)
     delta <- abs(e.new - e.curr)
     
     # replace current values with new estimates
-    p.curr <- EM.out$pi.new
+    p.curr <- EM.out$p.new
     mu.curr <- EM.out$mu.new
     sigma.curr <- EM.out$sigma.new
     e.curr <- e.new
   }
-  return(list(pi = EM.out$pi.new, mu = EM.out$mu.new, sigma = EM.out$sigma.new))
+  return(list(p = p.curr, mu = mu.curr, sigma = sigma.curr))
 }
 ```
 
 ```{r}
 # Define the initial values for the mixture model
-p.init <- c(0.2, 0.3, 0.5)
-mu.init <- c(0, 0.4, 0.7)
-sigma.init <- c(0.2, 0.2, 0.2)
+p <- c(0.2, 0.3, 0.5)
+mu <- c(0, 0.4, 0.7)
+sigma <- c(0.2, 0.2, 0.2)
 # Run EM
-result <- EM(as.vector(I), p.init, mu.init, sigma.init)
+result <- EM(as.vector(I), p, mu, sigma)
 ```
 
 ## Question 3.4
 ```{r}
 # Compute the probability of each pixels being in each class
-predict_prob <- compute.prob.x.z(as.vector(I), result$pi, result$mu, result$sigma)
+predict_prob <- compute.posterior(as.vector(I), result$p, result$mu, result$sigma)
 
 # Classify each pixels based on their pdf estimation
 label <- rep(0, length(as.vector(I)))
@@ -359,6 +373,7 @@ for (i in 1:length(as.vector(I))) {
   label[i] <- which(predict_prob$p[i, ] == max(predict_prob$p[i, ]))
 }
 
+# Posterior PDFs multiplied with their mean
 posterior <- predict_prob$p / rowSums(predict_prob$p)
 mean <- t(replicate(length(as.vector(I)), result$mu))
 posterior.mean <- rowSums(posterior * mean)
@@ -371,13 +386,11 @@ label[label == 3] <- 4
 
 ## Question 3.5
 ```{r}
-# Check dimension for reshape
-dim(I)
-# Plot figure 3a
+# Plot figure 3a and 3b
 image.plot(matrix(label, 398, 398))
 ```
+
 ```{r}
-# Plot figure 3b
 image.plot(matrix(posterior.mean, 398, 398))
 ```
 

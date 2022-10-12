@@ -1,0 +1,157 @@
+---
+title: "MAST90083 Assignment 3"
+author: "Haonan Zhong"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1.1
+```{r}
+library(ggplot2)
+library(dplyr)
+library(e1071)
+
+C <- 3
+N <- 300
+
+set.seed(50)
+# Construct x, y, and z
+x <- matrix(rnorm(N*2), ncol = 2)
+z <- matrix(c(0, 0, 3, 0, 3, 0), C, 2)
+y <- c(rep(1, 100), rep(2, 100), rep(3, 100))
+
+# Assign class specific means to data points
+px <- pnorm(x)
+for (i in 1:N) {
+  p.1 <- px[i,1]
+  p.2 <- px[i,2]
+  if (y[i] == 1) {
+    x[i,1] <- qnorm(p.1, z[1,1])
+    x[i,2] <- qnorm(p.2, z[1,2])
+  }
+  else if (y[i] == 2) {
+    x[i,1] <- qnorm(p.1, z[2,1])
+    x[i,2] <- qnorm(p.2, z[2,2])
+  }
+  else {
+    x[i,1] <- qnorm(p.1, z[3,1])
+    x[i,2] <- qnorm(p.2, z[3,2])
+  }
+}
+```
+
+```{r}
+x_df <- data.frame(x)
+colnames(x_df) <- c('x1', 'x2')
+
+x_df %>%
+  ggplot(aes(x = x1, y = x2), xlab = "x1", ylab = "x2") + 
+  geom_point(aes(color = as.factor(y))) + 
+  ggtitle("The three classes of X") +
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9")) +
+  labs(color='Class', x = "x1", y = "x2")
+```
+
+## Question 1.2
+```{r}
+tdata <- data.frame(x = x, y = as.factor(y))
+svmfit <- svm(y ~., data = tdata, cost = 10, kernel = "linear")
+plot(svmfit, tdata)
+```
+
+```{r}
+# Generate summary using the object svmfit
+summary(svmfit)
+```
+As we can see from the summary output, there are a total of 67 support vectors, where 31 are from class 1, following by 19 from class 2, while 17 are from class 3.
+
+## Question 1.3
+```{r}
+set.seed(50)
+tuned <- tune(svm, y~., data = tdata, kernel = "linear", 
+              ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+summary(tuned)
+```
+As we can see from the result above, the minimum cross validation error is 0.08 when the $cost=1$.
+
+```{r}
+bestmod <- tuned$best.model
+summary(bestmod)
+```
+As the result shown, the number of support vector has increased from 67 to 81. 37 of the support vectors are from class 1, and both class 2 and class 3 has 22 support vectors.
+
+## Question 1.4
+```{r}
+set.seed(10)
+x_test <- matrix(rnorm(N*2), ncol=2)
+
+set.seed(100)
+y_test <- sample(c(1:3), 300, replace = TRUE)
+
+# Assign class specific means to data points
+px <- pnorm(x_test)
+for (i in 1:N) {
+  p.1 <- px[i,1]
+  p.2 <- px[i,2]
+  if (y_test[i] == 1) {
+    x_test[i,1] <- qnorm(p.1, z[1,1])
+    x_test[i,2] <- qnorm(p.2, z[1,2])
+  }
+  else if (y_test[i] == 2) {
+    x_test[i,1] <- qnorm(p.1, z[2,1])
+    x_test[i,2] <- qnorm(p.2, z[2,2])
+  }
+  else {
+    x_test[i,1] <- qnorm(p.1, z[3,1])
+    x_test[i,2] <- qnorm(p.2, z[3,2])
+  }
+}
+
+testdata <- data.frame(x = x_test , y = as.factor(y_test))
+
+set.seed(100)
+y_p <- predict(bestmod, testdata)
+# Print the results in form of a table for the predicted labels against the test labels
+table(y_p, y_test)
+```
+As shown in the confusion matrix above, we can see there are 27 misclassified observations. And we can see there are 109 correctly classified observations for class 3. It is reasonable given that y is labeled randomly, as we can see there are a total number of 114 observation labeled as class 3.
+
+## Question 1.5
+```{r}
+svmfit_radial <- svm(y ~., data = tdata, cost = 1, gamma = 1, kernel = "radial")
+plot(svmfit_radial, tdata)
+```
+```{r}
+# Generate summary using the object svmfit with radial kernel
+summary(svmfit_radial)
+```
+As we can see the summary output of the SVM with radial kernel, there are a total of 94 support vectors. Where class 1, class 2, and class 3 have 39, 30, and 25, respectively.
+
+```{r}
+set.seed(50)
+# Tuning, perform a ten-fold cross-validation
+svmfit_radial_cv <- tune(svm, y ~., data = tdata, kernel = "radial",
+                         ranges = list(cost = c(0.1, 1, 10, 100, 1000),
+                                       gamma = c(0.5, 1, 2, 3, 4)))
+
+summary(svmfit_radial_cv)
+```
+As we can see from the summary above, the minimum cross validation error is 0.07333333 when $gamma=2$ and $cost=100$.
+
+```{r}
+# Printing the summary of the best model with radial kernel
+bestmod_radial <- svm(y ~., data = tdata, cost = 100, gamma = 2, kernel = "radial")
+summary(bestmod_radial)
+```
+As we can see from the summary above, the number of support vectors decreases from 94 to 88 compared to the previous model. And class 1, class 2, and class 3 have 32, 30, and 26 support vectors, respectively.
+
+```{r}
+set.seed(100)
+y_p <- predict(bestmod_radial, testdata)
+# Print the results in form of a table for the predicted labels against the test labels
+table(y_p, y_test)
+```
+As the confusion matrix shown above, there are 35 observation being misclassified, which is more than the SVM fitted using linear kernel. Thus, given the data points are linearly separable and we don't need the radial kernel.
