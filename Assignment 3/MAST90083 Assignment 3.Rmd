@@ -1,6 +1,6 @@
 ---
 title: "MAST90083 Assignment 3"
-author: "Haonan Zhong"
+author: "Haonan Zhong 867492"
 output: pdf_document
 ---
 
@@ -24,23 +24,9 @@ z <- matrix(c(0, 0, 3, 0, 3, 0), C, 2)
 y <- c(rep(1, 100), rep(2, 100), rep(3, 100))
 
 # Assign class specific means to data points
-px <- pnorm(x)
-for (i in 1:N) {
-  p.1 <- px[i,1]
-  p.2 <- px[i,2]
-  if (y[i] == 1) {
-    x[i,1] <- qnorm(p.1, z[1,1])
-    x[i,2] <- qnorm(p.2, z[1,2])
-  }
-  else if (y[i] == 2) {
-    x[i,1] <- qnorm(p.1, z[2,1])
-    x[i,2] <- qnorm(p.2, z[2,2])
-  }
-  else {
-    x[i,1] <- qnorm(p.1, z[3,1])
-    x[i,2] <- qnorm(p.2, z[3,2])
-  }
-}
+x[1:100,] <- x[1:100,] + t(replicate(100, z[1,]))
+x[101:200,] <- x[101:200,] + t(replicate(100, z[2,]))
+x[201:300,] <- x[201:300,] + t(replicate(100, z[3,]))
 ```
 
 ```{r}
@@ -85,28 +71,22 @@ As the result shown, the number of support vector has increased from 67 to 81. 3
 
 ## Question 1.4
 ```{r}
-set.seed(10)
-x_test <- matrix(rnorm(N*2), ncol=2)
+set.seed(100)
+x_test <- matrix(rnorm(N * 2), ncol=2)
 
 set.seed(100)
 y_test <- sample(c(1:3), 300, replace = TRUE)
 
 # Assign class specific means to data points
-px <- pnorm(x_test)
 for (i in 1:N) {
-  p.1 <- px[i,1]
-  p.2 <- px[i,2]
   if (y_test[i] == 1) {
-    x_test[i,1] <- qnorm(p.1, z[1,1])
-    x_test[i,2] <- qnorm(p.2, z[1,2])
+    x_test[i,] <- x_test[i,] + z[1,]
   }
   else if (y_test[i] == 2) {
-    x_test[i,1] <- qnorm(p.1, z[2,1])
-    x_test[i,2] <- qnorm(p.2, z[2,2])
+    x_test[i,] <- x_test[i,] + z[2,]
   }
   else {
-    x_test[i,1] <- qnorm(p.1, z[3,1])
-    x_test[i,2] <- qnorm(p.2, z[3,2])
+    x_test[i,] <- x_test[i,] + z[3,]
   }
 }
 
@@ -154,30 +134,48 @@ y_p <- predict(bestmod_radial, testdata)
 # Print the results in form of a table for the predicted labels against the test labels
 table(y_p, y_test)
 ```
-As the confusion matrix shown above, there are 35 observation being misclassified, which is more than the SVM fitted using linear kernel. Thus, given the data points are linearly separable and we don't need the radial kernel.
+As the confusion matrix shown above, there are 36 observation being misclassified, which is more than the SVM fitted using linear kernel. Thus, the result here implies that radial kernel is not needed as most of the points are linearly separable.
 
 ## Question 2.1
 The hidden node can be express as follow, where $f_j$ is the activation function of the hidden layer
 $$
-Z_j = f_j(\beta_{0j}+\sum_{m=1}^{r}\beta_{mj}\cdot x_m)
+Z_j = f_j(\beta_{0j}+\sum_{m=1}^{r}\beta_{mj} x_m)
 $$
 The output node $Y_k$ can be express as follow, where $g_k$ is the activation function for the output layer
 $$
-Y_k = g_k[\alpha_{0k} + \sum_{j=1}^{t}\alpha_{jk}\cdot f_j(\beta_{0j}+\sum_{m=1}^{r}\beta_{mj}\cdot x_m)]
+Y_k = g_k[\alpha_{0k} + \sum_{j=1}^{t}\alpha_{jk} f_j(\beta_{0j}+\sum_{m=1}^{r}\beta_{mj} x_m)] + \epsilon_k
 $$
 
 ## Question 2.2
-The hidden layer can be express as follow using matrix form, where $f$ is the activation function of the hidden layer, $\mathbf{Z} = (Z_1,...,Z_t)^\top$ is a vector of the hidden nodes, $\mathbf{\beta_0} = (\beta_{01},...,\beta_{0t})^\top$ is a vector of biases of the hidden nodes, $\mathbf{B} = (\beta_{1},...,\beta_{t})^\top$ is a matrix with $(t\times r)$ rows of connection weight for each hidden nodes, and $\mathbf{X} = (X_1, ..., X_r)^\top$ is matrix of the input.
+The hidden layer can be express as follow using matrix form, where $\mathbf{f} = (f_1,...,f_t)^\top$ is the activation function of the hidden layer, $\mathbf{\beta_0} = (\beta_{01},...,\beta_{0t})^\top$ is a vector of biases of the hidden nodes, $\mathbf{B} = (\beta_{1},...,\beta_{t})^\top$ is a $(t\times r)$ matrix of connection weight for each hidden nodes
 $$
-\mathbf{Z} = f(\mathbf{\beta_0} + \mathbf{X}^\top\mathbf{B})
+\mathbf{f}(\mathbf{\beta_0} + \mathbf{B}\mathbf{X})
 $$
-The output layer can be express as follow using matrix form, where $g$ is the activation function of the hidden layer, $\mathbf{Y} = (Y_1,...,Y_t)^\top$ is a vector of the output nodes, $\mathbf{\alpha_0} = (\alpha_{01},...,\alpha_{0s})^\top$ is a vector of biases of the hidden nodes, $\mathbf{\alpha} = (\alpha_{1},...,\alpha_{s})^\top$ is a matrix with $(s\times t)$ rows of connection weight for each output nodes, and $\mathbf{Z}$ is described in the above function.
+The output layer can be express as follow using matrix form, where $\mathbf{g} = (g_1,...,g_s)^\top$ is the activation function of the hidden layer, $\mathbf{\alpha_0} = (\alpha_{01},...,\alpha_{0s})^\top$ is a vector of biases of the hidden nodes, $\mathbf{A} = (\alpha_{1},...,\alpha_{s})^\top$ is a $(s\times t)$ matrix of connection weight for each output nodes.
 $$
-\mathbf{Y} = g(\mathbf{\alpha_0} + \mathbf{\alpha}\mathbf{Z})
+\mathbf{\mu(X)} = \mathbf{g}(\mathbf{\alpha_0} + \mathbf{A}\mathbf{f}(\mathbf{\beta_0} + \mathbf{B}\mathbf{X}))
 $$
 
 ## Question 2.3
-If the activation function $f_j()$ fo the hidden layer is simply the identity function, and the actiavtion function $g_k()$ is the same as the one of the single-layer perceptron, then the two-layer network will be equivalent to a single layer perceptron.
+Take $s$ as 1, therefore we will have a single output node. Let all hidden nodes in the single hidden layer to have the same sigmoidal activation function $\sigma$, and have the output activation function $g$ as linear. The network output then reduces to 
+$$
+y = \mu(\mathbf{x}) + \epsilon,
+$$
+$$
+\text{where,} \; \mu(\mathbf{x}) = \alpha_{0k} + \sum_{j=1}^{t}\alpha_{jk}\sigma(\beta_{0j}+\sum_{m=1}^{r}\beta_{mj} x_m)
+$$
+Hence, this network becomes equivalent to a single layer perceptron.
 
 ## Question 2.4
 If both activation functions for the hidden layer and output layer are taken to be identity functions, then the network simply be a linear combination of the input values, which is essentially a linear regression model.
+$$
+\mathbf{Y} = g(\mathbf{\alpha_0} + \mathbf{A}\mathbf{f}(\mathbf{\beta_0} + \mathbf{B}\mathbf{X})), \: \text{where} \;\mathbf{f}, \: \mathbf{g} \:\text{is the identity function}
+$$
+$$
+\mathbf{Y} = \mathbf{\alpha_0} + \mathbf{A}\mathbf{\beta_0} + \mathbf{A}\mathbf{B}\mathbf{X}
+$$
+$$
+\mathbf{Y} = \mu + \mathbf{A}\mathbf{B}\mathbf{X},  \: \text{where} \; \mathbf{\mu} = \mathbf{\alpha_0} + \mathbf{A}\mathbf{\beta_0}
+$$
+
+
